@@ -42,6 +42,7 @@
 #include <buddy/logging.hpp>
 #include <i2c.hpp>
 #include <option/buddy_enable_connect.h>
+#include <option/custom_board_no_onewire_otp.h>
 #include <option/has_power_panic.h>
 #include <option/has_puppies.h>
 #include <option/has_puppies_bootloader.h>
@@ -303,11 +304,24 @@ extern "C" void main_cpp(void) {
     Fans::init_hw();
     hw_dma_init();
 
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // Register RTT/USB/file sinks ASAP so early breadcrumbs are visible on SWD RTT
+    // (USB CDC still needs usb_device task + host open at 57600 baud).
+    buddy::logging_init();
+    log_info(Buddy, "DIY boot: gpio/dma ok, init xflash");
+#endif
+
     if (!W25xFlash::instance().init()) {
         // Actually, there is no point in calling bsod() here since it writes the message
         // to the external FLASH to show after the reboot
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        log_critical(Buddy, "DIY boot: W25x SPI flash init FAILED");
+#endif
         bsod("failed to initialize ext flash");
     }
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    log_info(Buddy, "DIY boot: W25x ok");
+#endif
 #if HAS_INTERNAL_STORAGE_FLASH()
     (void)Mt29fFlash::instance().init();
 #endif
@@ -389,6 +403,7 @@ extern "C" void main_cpp(void) {
      * MK4 HW detected on CORE ONE firmware or vice versa
      *
      * Ignore the check in production (tester_mode), the xBuddy's connected peripherals are safe in this mode.
+     * CUSTOM_BOARD_NO_ONEWIRE_OTP: is_fw_compatible_with_hw() is forced true (see hw_configuration.cpp).
      */
     if (!buddy::hw::Configuration::Instance().is_fw_compatible_with_hw() && !running_in_tester_mode()) {
         const auto &error = find_error(ErrCode::WARNING_DIFFERENT_FW_REQUIRED);
@@ -405,8 +420,14 @@ extern "C" void main_cpp(void) {
 #if !BOARD_IS_BUDDY()
     // No Configuration class for BUDDY
     if (!buddy::hw::Configuration::Instance().check_bom_compatible()) {
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        log_critical(Buddy, "DIY boot: BOM ID not compatible (bom=%u)", buddy::hw::Configuration::Instance().get_board_bom_id());
+    #endif
         bsod("BOM ID not compatible");
     }
+#endif
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    log_info(Buddy, "DIY boot: bom_id=%u, continuing toward display/USB", buddy::hw::Configuration::Instance().get_board_bom_id());
 #endif
 
 #if HAS_XBUDDY_EXTENSION()
@@ -434,6 +455,12 @@ extern "C" void main_cpp(void) {
         hotend_detect::init_skipped();
 #endif
         init_error_screen();
+
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        // DIY: still expose USB CDC so a host can open 57600 baud for logs.
+        create_task("usb_device", usb_device_task_run, TASK_PRIORITY_USB_DEVICE, task_stack.usb_device, task_control_block.usb_device);
+        log_warning(Buddy, "DIY boot: error screen path, USB CDC started for logging");
+#endif
 
 #if BUDDY_ENABLE_WUI() && BUDDY_ENABLE_CONNECT()
         // We want to send the error screen to Connect to show there.
@@ -464,7 +491,11 @@ extern "C" void main_cpp(void) {
     }
     bsod_mark_shown(); // BSOD would be shown, allow new BSOD dump
 
+#if !CUSTOM_BOARD_NO_ONEWIRE_OTP()
     buddy::logging_init();
+#else
+    log_info(Buddy, "DIY boot: past error-screen gate, init peripherals");
+#endif
 
 #if BOARD_IS_BUDDY() || BOARD_IS_XBUDDY()
     hw_tim3_init();

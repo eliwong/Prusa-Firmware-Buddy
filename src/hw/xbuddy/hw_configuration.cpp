@@ -7,6 +7,7 @@
 #include <adc.hpp>
 #include <common/hwio_pindef.h>
 #include <option/bootloader.h>
+#include <option/custom_board_no_onewire_otp.h>
 #include <option/has_door_sensor.h>
 #include <option/has_indx_head.h>
 #if HAS_DOOR_SENSOR()
@@ -107,6 +108,10 @@ bool Configuration::has_trinamic_oscillators() const {
 
 bool Configuration::is_fw_compatible_with_hw() const {
 #if PRINTER_IS_PRUSA_iX()
+    return true;
+#elif CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // DIY boards often float door-sensor / loadcell pins; failing this check
+    // returns from main_cpp before USB CDC is started (blank + no serial).
     return true;
 #else
 
