@@ -16,6 +16,7 @@
 #include <common/spi_baud_rate_prescaler_guard.hpp>
 #include <option/diy_ili9488_bgr.h>
 #include <option/diy_ili9488_inversion_off.h>
+#include <option/diy_ili9488_skip_madctl_check.h>
 #include "hwio_pindef.h"
 #include "cmsis_os.h"
 
@@ -346,9 +347,15 @@ void ili9488_cmd_ramrd(uint8_t *pdata, uint16_t size) {
 
 bool ili9488_is_reset_required() {
     // REMOVEME: This is a bit of hack to reduce config_store locks.
-    // This function is called in lcd::communication_check every 2 s.
+    // This function is called in lcd::communication_check every ~2 s.
     reduce_display_baudrate = config_store().reduce_display_baudrate.get();
 
+#if DIY_ILI9488_SKIP_MADCTL_CHECK()
+    // Clone/DIY panels frequently cannot read MADCTL (missing/weak SPI MISO). Treating a
+    // failed read as "display crashed" causes complete_reinit + full redraw every ~2 s —
+    // perceived as a whole-screen white flash. Skip the probe; keep baudrate refresh only.
+    return false;
+#else
     uint8_t pdata[ILI9488_MAX_COMMAND_READ_LENGHT] = { 0x00 };
     ili9488_cmd_rd(CMD_MADCTLRD, pdata);
     // Accept RGB (0xE0/0xF0) and BGR (0xE8/0xF8) MADCTL variants used by Prusa vs DIY panels.
@@ -356,6 +363,7 @@ bool ili9488_is_reset_required() {
         return true;
     }
     return false;
+#endif
 }
 
 void ili9488_reset(void) {

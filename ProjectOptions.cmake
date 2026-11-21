@@ -112,8 +112,12 @@ set(CUSTOM_BOARD_NO_ONEWIRE_OTP
     )
 define_boolean_option(CUSTOM_BOARD_NO_ONEWIRE_OTP ${CUSTOM_BOARD_NO_ONEWIRE_OTP})
 
-# DIY ILI9488 panels often differ from Prusa xLCD: wrong INVON/INVOFF → light bg/dark text;
-# missing MADCTL BGR bit → R/B swap (orange brand becomes blue). Defaults follow CUSTOM_BOARD.
+# DIY ILI9488 panels often differ from Prusa xLCD.
+# - Wrong INVON → light bg/dark text; clones usually need INVOFF. Default ON with CUSTOM_BOARD.
+# - BGR MADCTL: OFF by default. Inverted orange often looks blue; after INVOFF, Prusa RGB (0xE0)
+#   is usually correct. Enable only if brand orange still reads as blue with INVOFF.
+# - MADCTL readback on clones often fails (SPI MISO), causing lcd::communication_check to
+#   reinit the panel every ~2s → whole-screen white flash. Skip that check by default.
 set(DIY_ILI9488_INVERSION_OFF
     ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
     CACHE BOOL
@@ -121,11 +125,17 @@ set(DIY_ILI9488_INVERSION_OFF
     )
 define_boolean_option(DIY_ILI9488_INVERSION_OFF ${DIY_ILI9488_INVERSION_OFF})
 set(DIY_ILI9488_BGR
-    ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
+    OFF
     CACHE BOOL
-          "DIY ILI9488: set MADCTL BGR bit (0xE0|0x08) for R/B order on clone panels."
+          "DIY ILI9488: set MADCTL BGR bit (0xE0|0x08). Only if orange still looks blue after INVOFF."
     )
 define_boolean_option(DIY_ILI9488_BGR ${DIY_ILI9488_BGR})
+set(DIY_ILI9488_SKIP_MADCTL_CHECK
+    ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
+    CACHE BOOL
+          "DIY ILI9488: skip MADCTL readback health check (avoids periodic full LCD reinit/flash)."
+    )
+define_boolean_option(DIY_ILI9488_SKIP_MADCTL_CHECK ${DIY_ILI9488_SKIP_MADCTL_CHECK})
 
 if(${BOARD} STREQUAL "XL_DEV_KIT_XLB")
   set(WUI
