@@ -28,11 +28,28 @@
 #include <sha256.h>
 
 #include <common/mutable_path.hpp>
+#include <option/custom_board_no_onewire_otp.h>
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    #include <usb_host/usb_host.h>
+    #include <atomic>
+#endif
 
 using Path = MutablePath;
 
 LOG_COMPONENT_DEF(Resources, logging::Severity::debug);
 using buddy::BootstrapStage;
+
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+static std::atomic<buddy::resources::DiyBbfHint> g_diy_bbf_hint { buddy::resources::DiyBbfHint::waiting_usb };
+
+buddy::resources::DiyBbfHint buddy::resources::diy_bbf_hint() {
+    return g_diy_bbf_hint.load(std::memory_order_relaxed);
+}
+
+static void diy_set_bbf_hint(buddy::resources::DiyBbfHint hint) {
+    g_diy_bbf_hint.store(hint, std::memory_order_relaxed);
+}
+#endif
 
 static bool has_bbf_suffix(const char *fname) {
     char *dot = strrchr(fname, '.');
@@ -191,15 +208,29 @@ static FILE *open_bbf_over_debugger(Path &path_buffer, const buddy::resources::R
 static bool find_suitable_bbf_file(const buddy::resources::Revision &revision, Path &bbf, buddy::bbf::TLVType &bbf_entry) {
     log_debug(Resources, "Searching for a bbf...");
 
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    if (!usb_host::is_media_inserted()) {
+        log_warning(Resources, "DIY: USB Host media not inserted/mounted yet");
+        diy_set_bbf_hint(buddy::resources::DiyBbfHint::waiting_usb);
+        return false;
+    }
+    diy_set_bbf_hint(buddy::resources::DiyBbfHint::searching);
+#endif
+
     // open the directory
     Directory dir { "/usb" };
     if (!dir) {
         log_warning(Resources, "Failed to open /usb directory");
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        diy_set_bbf_hint(buddy::resources::DiyBbfHint::waiting_usb);
+#endif
         return false;
     }
 
     // locate bbf file
     bool bbf_found = false;
+    bool saw_bbf_name = false;
+    bool saw_digest_mismatch = false;
     struct dirent *entry;
     while ((entry = dir.read())) {
         // check is bbf
@@ -207,6 +238,7 @@ static bool find_suitable_bbf_file(const buddy::resources::Revision &revision, P
             log_debug(Resources, "Skipping file: %s (bad suffix)", entry->d_name);
             continue;
         }
+        saw_bbf_name = true;
         // create full path
         bbf.set("/usb");
         bbf.push(entry->d_name);
@@ -229,13 +261,23 @@ static bool find_suitable_bbf_file(const buddy::resources::Revision &revision, P
             bbf_entry = buddy::bbf::TLVType::BOOTLOADER_TARBALL;
             break;
         } else {
-            log_info(Resources, "Skipping file: %s (not compatible)", bbf.get());
+            saw_digest_mismatch = true;
+            log_info(Resources, "Skipping file: %s (not compatible / digest mismatch)", bbf.get());
             continue;
         }
     }
 
     if (!bbf_found) {
         log_warning(Resources, "Failed to find a .bbf file");
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        if (saw_digest_mismatch) {
+            diy_set_bbf_hint(buddy::resources::DiyBbfHint::digest_mismatch);
+        } else if (!saw_bbf_name) {
+            diy_set_bbf_hint(buddy::resources::DiyBbfHint::no_bbf);
+        } else {
+            diy_set_bbf_hint(buddy::resources::DiyBbfHint::searching);
+        }
+#endif
         return false;
     }
 

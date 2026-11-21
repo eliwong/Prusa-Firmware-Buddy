@@ -17,6 +17,9 @@
 #include <option/has_xl_can.h>
 #include <option/resources.h>
 #include <option/custom_board_no_onewire_otp.h>
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    #include <resources/bootstrap.hpp>
+#endif
 #include <version/version.hpp>
 
 #if HAS_MINI_DISPLAY()
@@ -123,7 +126,18 @@ static const char *message(BootstrapStage stage) {
 #if RESOURCES() || BOOTLOADER_UPDATE()
     case BootstrapStage::looking_for_bbf:
     #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
-        // DFU of .bin/.hex does not install UI resources; need matching .bbf on USB host.
+        // DFU .bin/.hex has no UI resources; bootstrap waits for matching USB Host .bbf.
+        // Progress stays ~50% until a suitable file is found (scale of this stage is tiny).
+        switch (buddy::resources::diy_bbf_hint()) {
+        case buddy::resources::DiyBbfHint::waiting_usb:
+            return "Plug USB-A stick";
+        case buddy::resources::DiyBbfHint::no_bbf:
+            return "No .bbf on USB";
+        case buddy::resources::DiyBbfHint::digest_mismatch:
+            return "BBF digest mismatch";
+        case buddy::resources::DiyBbfHint::searching:
+            return "Scanning USB .bbf";
+        }
         return "Insert USB with .bbf";
     #else
         return "Looking for BBF...";
