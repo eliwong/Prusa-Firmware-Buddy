@@ -103,6 +103,15 @@ if(SIGNATURE_OAK AND NOT PRINTER STREQUAL "COREONE")
 endif()
 define_boolean_option(SIGNATURE_OAK ${SIGNATURE_OAK})
 
+# DIY / clone xBuddy boards that omit the AT21CSxx single-wire (1-Wire-like) OTP EEPROM on LoveBoard
+# / xLCD, and often leave STM32 OTP unprogrammed.
+set(CUSTOM_BOARD_NO_ONEWIRE_OTP
+    "ON"
+    CACHE BOOL
+          "Bypass AT21CSxx 1-wire OTP reads and provide fallback board BOM ID when OTP is missing."
+    )
+define_boolean_option(CUSTOM_BOARD_NO_ONEWIRE_OTP ${CUSTOM_BOARD_NO_ONEWIRE_OTP})
+
 if(${BOARD} STREQUAL "XL_DEV_KIT_XLB")
   set(WUI
       "NO"
@@ -1254,8 +1263,9 @@ set(DEVELOPER_MODE
     )
 define_boolean_option(DEVELOPER_MODE ${DEVELOPER_MODE})
 
+# Default ON together with CUSTOM_BOARD_NO_ONEWIRE_OTP for DIY boards with blank STM32 OTP.
 set(ALLOW_MISSING_OTP
-    "OFF"
+    "ON"
     CACHE BOOL "Run on boards with blank OTP (no serial number) instead of failing with a BSOD."
     )
 define_boolean_option(ALLOW_MISSING_OTP ${ALLOW_MISSING_OTP})

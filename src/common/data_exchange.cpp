@@ -7,6 +7,7 @@
 #include <device/hal.h>
 #include <hw/at21csxx.hpp>
 #include <option/bootloader.h>
+#include <option/custom_board_no_onewire_otp.h>
 #include <option/has_indx.h>
 #include <otp/types.hpp>
 
@@ -38,6 +39,41 @@ struct __attribute__((packed)) DataExchange {
 // Do not forget to modify linker script if you change any of those.
 DataExchange &ram_data_exchange = *(DataExchange *)SRAM1_BASE;
 static_assert(sizeof(DataExchange) == 100);
+
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP() && (HAS_XLCD() || HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5())
+/**
+ * Synthetic OTP_v2 used when the AT21CSxx single-wire EEPROM is absent.
+ * Must pass the same heuristics as a successful EEPROM read (size + "00" prefix).
+ * bomID 34 matches a modern LoveBoard / xLCD revision used by current MK4 HW.
+ */
+static void fill_synthetic_otp_v2(OTP_v2 &calib_data, OtpStatus &status) {
+    calib_data = {};
+    calib_data.version = OTP_v2::version_number;
+    calib_data.size = sizeof(OTP_v2);
+    calib_data.bomID = 34;
+    // Minimal datamatrix that satisfies load heuristics and otp::decode_datamatrix.
+    static constexpr char dm[] = "004558-0200001905259999";
+    static_assert(sizeof(dm) - 1 <= sizeof(calib_data.datamatrix));
+    std::memcpy(calib_data.datamatrix.data(), dm, sizeof(dm) - 1);
+    status = {};
+    status.data_valid = true;
+}
+
+/// With BOOTLOADER=YES the closed-source bootloader fills ram_data_exchange;
+/// if AT21CSxx is missing those fields stay invalid — patch them before Configuration runs.
+static void fixup_missing_onewire_otp() {
+    #if HAS_XLCD()
+    if (!ram_data_exchange.xlcd_status.data_valid) {
+        fill_synthetic_otp_v2(ram_data_exchange.xlcd_eeprom, ram_data_exchange.xlcd_status);
+    }
+    #endif
+    #if HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5()
+    if (!ram_data_exchange.loveboard_status.data_valid) {
+        fill_synthetic_otp_v2(ram_data_exchange.loveboard_eeprom, ram_data_exchange.loveboard_status);
+    }
+    #endif
+}
+#endif
 
 #if !BOOTLOADER()
 // #error dead code found by automatic analyses (see BFW-5461)
@@ -127,9 +163,18 @@ void data_exchange_init() {
     // #error dead code found by automatic analyses (see BFW-5461)
     read_loveboard(ram_data_exchange.loveboard_eeprom, ram_data_exchange.loveboard_status);
     #endif
+
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP() && (HAS_XLCD() || HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5())
+    fixup_missing_onewire_otp();
+    #endif
 }
 #else
-void data_exchange_init() {}
+void data_exchange_init() {
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP() && (HAS_XLCD() || HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5())
+    // Bootloader already attempted AT21CSxx reads into shared RAM; replace failures.
+    fixup_missing_onewire_otp();
+    #endif
+}
 #endif
 
 static FwAutoUpdate get_auto_update_flag(void) {
