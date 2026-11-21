@@ -16,6 +16,7 @@
 #include <option/has_xbuddy_extension.h>
 #include <option/has_xl_can.h>
 #include <option/resources.h>
+#include <option/custom_board_no_onewire_otp.h>
 #include <version/version.hpp>
 
 #if HAS_MINI_DISPLAY()
@@ -121,7 +122,12 @@ static const char *message(BootstrapStage stage) {
         break;
 #if RESOURCES() || BOOTLOADER_UPDATE()
     case BootstrapStage::looking_for_bbf:
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        // DFU of .bin/.hex does not install UI resources; need matching .bbf on USB host.
+        return "Insert USB with .bbf";
+    #else
         return "Looking for BBF...";
+    #endif
 #endif
 #if RESOURCES()
     case BootstrapStage::preparing_bootstrap:

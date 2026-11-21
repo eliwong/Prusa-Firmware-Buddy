@@ -280,6 +280,12 @@ static bool bootloader_update() {
 
 static void resources_update() {
     if (!buddy::resources::has_resources(buddy::resources::revision::standard)) {
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        // First boot after DFU: SPI flash has no /system/res yet. bootstrap() blocks
+        // until a matching .bbf appears on USB host (/usb/*.bbf). There is no knob skip —
+        // put mk4_debug_noboot_*.bbf on a FAT32 stick (same build as the flashed firmware).
+        log_warning(Buddy, "DIY boot: no UI resources on xflash; waiting for USB .bbf (do not skip)");
+#endif
         buddy::resources::bootstrap(buddy::resources::revision::standard);
     }
     TaskDeps::provide(TaskDeps::Dependency::resources_ready);
