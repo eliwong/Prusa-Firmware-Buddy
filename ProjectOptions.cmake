@@ -136,13 +136,13 @@ set(DIY_ILI9488_SKIP_MADCTL_CHECK
           "DIY ILI9488: skip MADCTL readback health check (avoids periodic full LCD reinit/flash)."
     )
 define_boolean_option(DIY_ILI9488_SKIP_MADCTL_CHECK ${DIY_ILI9488_SKIP_MADCTL_CHECK})
-# MK4/xBuddy has no MCU backlight GPIO. Official xLCD (bom>=29) drives panel CABC_PWM via SPI
-# with inverted polarity for a high-side PMOS (gate low = on). DIY boards that use a discrete
-# PMOS and leave the gate to GND for always-on should not enable that SPI BL path.
+# Optional: skip ILI9488 CABC_PWM SPI backlight block. Default OFF — DIY NeoPixel/status-LED
+# backlight boards still need normal init; disabling this was suspected of black-screen regressions.
+# Hardware always-on (PMOS gate to GND) works with either setting.
 set(DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT
-    ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
+    OFF
     CACHE BOOL
-          "DIY ILI9488: skip WRCTRLD/CABC PWM backlight setup (use discrete always-on PMOS to GND)."
+          "DIY ILI9488: skip WRCTRLD/CABC PWM backlight setup (only if discrete always-on needs it)."
     )
 define_boolean_option(DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT ${DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT})
 
