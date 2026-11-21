@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include "printers.h"
 #include <common/spi_baud_rate_prescaler_guard.hpp>
+#include <option/diy_ili9488_bgr.h>
+#include <option/diy_ili9488_inversion_off.h>
 #include "hwio_pindef.h"
 #include "cmsis_os.h"
 
@@ -41,9 +43,22 @@ struct ili9488_config_t {
     uint8_t control;
 };
 
-constexpr static uint8_t DEFAULT_MADCTL = 0xE0; // memory data access control (mirror XY)
+// MADCTL 0xE0 = MY|MX|MV (mirror XY). Bit3 BGR: 0=RGB (Prusa xLCD), 1=BGR (many DIY panels).
+constexpr static uint8_t DEFAULT_MADCTL = DIY_ILI9488_BGR() ? uint8_t { 0xE8 } : uint8_t { 0xE0 };
 constexpr static uint8_t DEFAULT_COLMOD = 0x66; // interface pixel format (6-6-6, hi-color)
 constexpr static uint8_t TRIBIT_COLMOD = 0x61; // interface pixel format (6-6-6, hi-color)
+
+void ili9488_inversion_on(void);
+void ili9488_inversion_off(void);
+
+/// Prusa xLCD needs INVON; many clone ILI9488 panels need INVOFF (otherwise light-on-dark).
+static void ili9488_apply_panel_inversion() {
+#if DIY_ILI9488_INVERSION_OFF()
+    ili9488_inversion_off();
+#else
+    ili9488_inversion_on();
+#endif
+}
 
 static ili9488_config_t ili9488_config = {
     .flg = ILI9488_FLG_DMA, // flags (DMA, MISO)
@@ -336,7 +351,8 @@ bool ili9488_is_reset_required() {
 
     uint8_t pdata[ILI9488_MAX_COMMAND_READ_LENGHT] = { 0x00 };
     ili9488_cmd_rd(CMD_MADCTLRD, pdata);
-    if ((pdata[1] != 0xE0 && pdata[1] != 0xF0 && pdata[1] != 0xF8)) {
+    // Accept RGB (0xE0/0xF0) and BGR (0xE8/0xF8) MADCTL variants used by Prusa vs DIY panels.
+    if ((pdata[1] != 0xE0 && pdata[1] != 0xE8 && pdata[1] != 0xF0 && pdata[1] != 0xF8)) {
         return true;
     }
     return false;
@@ -377,7 +393,7 @@ static void startup_old_manufacturer() {
     ili9488_delay_ms(10); // 10ms wait
     ili9488_clear(0x000000); // black screen after power on
     ili9488_delay_ms(100); // time to set black color
-    ili9488_inversion_on();
+    ili9488_apply_panel_inversion();
 }
 
 static void startup_new_manufacturer() {
@@ -432,7 +448,7 @@ static void startup_new_manufacturer() {
     static constexpr auto ngamma_control_data = std::to_array<uint8_t>({ 0x00, 0x11, 0x0d, 0x01, 0x0f, 0x05, 0x39, 0x36, 0x51, 0x06, 0x0f, 0x0d, 0x33, 0x37, 0x0F });
     ili9488_cmd_array(0xE1, ngamma_control_data);
 
-    ili9488_inversion_on(); // Display Inversion ON
+    ili9488_apply_panel_inversion();
 
     ili9488_cmd_slpout(); // Sleep OUT - turns off the sleep mode
     ili9488_delay_ms(120); // 120ms wait
@@ -462,7 +478,7 @@ void ili9488_init(void) {
     } else {
         ili9488_cmd_madctl(DEFAULT_MADCTL); // memory data access control
         ili9488_cmd_colmod(DEFAULT_COLMOD); // interface pixel format
-        ili9488_inversion_on();
+        ili9488_apply_panel_inversion();
     }
 
 #if HAS_TOUCH()
