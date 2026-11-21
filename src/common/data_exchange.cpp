@@ -59,18 +59,16 @@ static void fill_synthetic_otp_v2(OTP_v2 &calib_data, OtpStatus &status) {
     status.data_valid = true;
 }
 
-/// With BOOTLOADER=YES the closed-source bootloader fills ram_data_exchange;
-/// if AT21CSxx is missing those fields stay invalid — patch them before Configuration runs.
+/// Always synthesize OTP on DIY boards (chip omitted). Do not trust a prior
+/// bootloader/app attempt that left data_valid=false or half-filled garbage —
+/// closed-source bootloader raises BT_EXTRUDER_NOT_DETECTED (XX615 / #23615
+/// when printer prefix is MK3.5) when LoveBoard AT21CSxx cannot be verified.
 static void fixup_missing_onewire_otp() {
     #if HAS_XLCD()
-    if (!ram_data_exchange.xlcd_status.data_valid) {
-        fill_synthetic_otp_v2(ram_data_exchange.xlcd_eeprom, ram_data_exchange.xlcd_status);
-    }
+    fill_synthetic_otp_v2(ram_data_exchange.xlcd_eeprom, ram_data_exchange.xlcd_status);
     #endif
     #if HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5()
-    if (!ram_data_exchange.loveboard_status.data_valid) {
-        fill_synthetic_otp_v2(ram_data_exchange.loveboard_eeprom, ram_data_exchange.loveboard_status);
-    }
+    fill_synthetic_otp_v2(ram_data_exchange.loveboard_eeprom, ram_data_exchange.loveboard_status);
     #endif
 }
 #endif

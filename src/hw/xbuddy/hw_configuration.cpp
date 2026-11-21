@@ -63,6 +63,13 @@ Configuration &Configuration::Instance() {
 Configuration::Configuration() {
     loveboard_bom_id = data_exchange::get_loveboard_eeprom().bomID;
     loveboard_present = data_exchange::get_loveboard_status().data_valid;
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // Soft-bypass: no AT21CSxx on DIY LoveBoard — treat as present with synthetic OTP.
+    if (!loveboard_present || loveboard_bom_id == 0) {
+        loveboard_present = true;
+        loveboard_bom_id = 34;
+    }
+#endif
 }
 
 bool Configuration::check_bom_compatible() const {

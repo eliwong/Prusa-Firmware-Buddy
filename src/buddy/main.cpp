@@ -226,6 +226,19 @@ static TaskHandle_t create_task(const char *name, void (*func)(), osPriority pri
         &tcb);
 }
 
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+/// DIY: start USB CDC once, as early as possible, so a later hang still leaves a serial port.
+static bool diy_usb_cdc_started = false;
+static void diy_start_usb_cdc(const char *where) {
+    if (diy_usb_cdc_started) {
+        return;
+    }
+    diy_usb_cdc_started = true;
+    create_task("usb_device", usb_device_task_run, TASK_PRIORITY_USB_DEVICE, task_stack.usb_device, task_control_block.usb_device);
+    log_warning(Buddy, "DIY boot: USB CDC started at %s", where);
+}
+#endif
+
 /**
  * Report bootstrap finished and firmware version.
  * This needs to be called after resources were successfully updated
@@ -321,6 +334,8 @@ extern "C" void main_cpp(void) {
     }
 #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
     log_info(Buddy, "DIY boot: W25x ok");
+    // Bring up CDC before LCD/TIM2/HW checks so host sees a port even if display/bootstrap hangs.
+    diy_start_usb_cdc("post-w25x");
 #endif
 #if HAS_INTERNAL_STORAGE_FLASH()
     (void)Mt29fFlash::instance().init();
@@ -379,17 +394,39 @@ extern "C" void main_cpp(void) {
 
     hw_rtc_init();
 
-    const bool want_error_screen = (dump_is_valid() && !dump_is_displayed()) || (message_is_valid() && message_get_type() != MsgType::EMPTY && !message_is_displayed());
+    bool want_error_screen = (dump_is_valid() && !dump_is_displayed()) || (message_is_valid() && message_get_type() != MsgType::EMPTY && !message_is_displayed());
+
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // Closed-source bootloader writes BT_EXTRUDER_NOT_DETECTED (XX615 → #13615/#23615)
+    // to xflash when LoveBoard AT21CSxx is absent. Also any other stale dump/message
+    // opens ScreenError → infinite critical_alert. DIY: invalidate and continue —
+    // AT21CSxx chip is intentionally omitted; firmware synthesizes LoveBoard OTP.
+    if (want_error_screen) {
+        const uint16_t pending_code = message_is_valid() ? load_message_error_code() : 0;
+        log_warning(Buddy, "DIY boot: clearing pending error screen (code=%u, BT_EXTRUDER/XX615 expected when no AT21CSxx)", pending_code);
+        dump_set_displayed();
+        message_set_displayed();
+        // Erase message payload so a later UI path cannot re-show XX615 text.
+        force_save_message_without_dump(MsgType::EMPTY, 0, "", "");
+        want_error_screen = false;
+    }
+#endif
 
 #if HAS_NFC()
     nfc::turn_off();
 #endif
 
 #if HAS_GUI()
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    log_info(Buddy, "DIY boot: spi_init_lcd");
+    #endif
     spi_init_lcd();
 #endif
 
 #if HAS_GUI() && !BOARD_IS_XLBUDDY()
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    log_info(Buddy, "DIY boot: hw_tim2_init (beeper PWM)");
+    #endif
     hw_tim2_init(); // TIM2 is used to generate buzzer PWM, except on older versions of XL. Not needed without display.
 #endif
 
@@ -454,13 +491,11 @@ extern "C" void main_cpp(void) {
 #if HAS_HT_HOTEND()
         hotend_detect::init_skipped();
 #endif
-        init_error_screen();
-
 #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
-        // DIY: still expose USB CDC so a host can open 57600 baud for logs.
-        create_task("usb_device", usb_device_task_run, TASK_PRIORITY_USB_DEVICE, task_stack.usb_device, task_control_block.usb_device);
-        log_warning(Buddy, "DIY boot: error screen path, USB CDC started for logging");
+        // Ensure CDC before GUI error path (ScreenError plays infinite critical_alert).
+        diy_start_usb_cdc("pre-error-screen");
 #endif
+        init_error_screen();
 
 #if BUDDY_ENABLE_WUI() && BUDDY_ENABLE_CONNECT()
         // We want to send the error screen to Connect to show there.
@@ -586,20 +621,37 @@ extern "C" void main_cpp(void) {
     filesystem_init();
 
 #if HAS_GUI()
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    log_info(Buddy, "DIY boot: starting display task (gui_run)");
+    #endif
     displayTaskHandle = create_task("display", gui_run, TASK_PRIORITY_DISPLAY_TASK, task_stack.display, task_control_block.display);
+#endif
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // Normal path used to start USB only *after* bootstrap_start. If gui_init/display
+    // never provides gui_display_ready, that wait never returns → blank + no USB.
+    diy_start_usb_cdc("pre-bootstrap-wait");
+    log_info(Buddy, "DIY boot: waiting for gui_display_ready (bootstrap_start)");
 #endif
     // wait for gui to init and render loading screen before starting flashing. We need to init bootstrap screen so we can send process percentage to it. Also it would look laggy without it.
     TaskDeps::wait(TaskDeps::Tasks::bootstrap_start);
 
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    log_info(Buddy, "DIY boot: bootstrap_start satisfied");
+#endif
+
 #if ENABLED(RESOURCES()) && ENABLED(BOOTLOADER_UPDATE())
     if (bootloader_update()) {
-        // Wait a while, before restart (this prevents some older board without appendix to enter internal bootloader on reset)
+        // Wait a while, before restart (this prevents some older board without revision to enter internal bootloader on reset)
         osDelay(300);
         sys_reset();
     }
 #endif
 
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    diy_start_usb_cdc("post-bootstrap"); // no-op if already started
+#else
     create_task("usb_device", usb_device_task_run, TASK_PRIORITY_USB_DEVICE, task_stack.usb_device, task_control_block.usb_device);
+#endif
 
 #if ENABLED(RESOURCES())
     resources_update();
