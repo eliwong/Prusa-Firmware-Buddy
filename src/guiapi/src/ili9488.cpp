@@ -15,6 +15,7 @@
 #include "printers.h"
 #include <common/spi_baud_rate_prescaler_guard.hpp>
 #include <option/diy_ili9488_bgr.h>
+#include <option/diy_ili9488_disable_panel_pwm_backlight.h>
 #include <option/diy_ili9488_inversion_off.h>
 #include <option/diy_ili9488_skip_madctl_check.h>
 #include "hwio_pindef.h"
@@ -495,15 +496,22 @@ void ili9488_init(void) {
     }
 #endif
 
+    // Official xLCD bom>=29: enable ILI9488 CABC_PWM (SPI) with inverted polarity for PMOS
+    // high-side switch (gate low = on). DIY discrete PMOS tied to GND should skip this so the
+    // controller does not drive CABC_PWM against an always-on gate.
+#if DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT()
+    // Leave panel PWM backlight block off; hardware must keep PMOS gate low (to GND) for light.
+#else
     if (Configuration::Instance().has_display_backlight_control()) {
         ili9488_brightness_enable();
 
-        // inverted brightness
+        // inverted brightness (CABCCTRL2 PWMPOL=1) — matches PMOS active-low gate
         uint8_t pwm_inverted = 0b10110001;
         ili9488_cmd(CMD_CABCCTRL2, &pwm_inverted, sizeof(pwm_inverted));
     }
 
     ili9488_brightness_set(0xFF); // set backlight to maximum
+#endif
 
     do_complete_lcd_reinit = false;
 }

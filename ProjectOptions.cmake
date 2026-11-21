@@ -136,6 +136,15 @@ set(DIY_ILI9488_SKIP_MADCTL_CHECK
           "DIY ILI9488: skip MADCTL readback health check (avoids periodic full LCD reinit/flash)."
     )
 define_boolean_option(DIY_ILI9488_SKIP_MADCTL_CHECK ${DIY_ILI9488_SKIP_MADCTL_CHECK})
+# MK4/xBuddy has no MCU backlight GPIO. Official xLCD (bom>=29) drives panel CABC_PWM via SPI
+# with inverted polarity for a high-side PMOS (gate low = on). DIY boards that use a discrete
+# PMOS and leave the gate to GND for always-on should not enable that SPI BL path.
+set(DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT
+    ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
+    CACHE BOOL
+          "DIY ILI9488: skip WRCTRLD/CABC PWM backlight setup (use discrete always-on PMOS to GND)."
+    )
+define_boolean_option(DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT ${DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT})
 
 if(${BOARD} STREQUAL "XL_DEV_KIT_XLB")
   set(WUI
