@@ -87,6 +87,8 @@
     #include "ili9488.hpp"
 #endif
 
+#include <option/custom_board_no_onewire_otp.h>
+
 #include <option/has_leds.h>
 #if HAS_LEDS()
     #include <leds/led_manager.hpp>
@@ -925,13 +927,28 @@ void panic_loop() {
 std::atomic<bool> ac_fault_enabled = false;
 
 void check_ac_fault_at_startup() {
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // DIY boards typically have no AC-sense circuitry on PG0 (Pull::none).
+    // A floating/low acFault pin triggers the idle path:
+    //   WaitingToDie → POWER_PANIC_HOLD_RST_MS (5s) → sys_reset()
+    // which reboots as Marlin "Software Reset" (SFTRST) about every ~9s and
+    // re-enumerates USB — matching the post-BBF hang at ~50% splash.
+    log_warning(PowerPanic, "DIY: AC fault / power panic disabled (no AC sense on PG0)");
+    ac_fault_enabled = false;
+    HAL_NVIC_DisableIRQ(buddy::hw::acFault.getIRQn());
+    return;
+#else
     if (power_panic::is_ac_fault_active()) {
         fatal_error(ErrCode::ERR_ELECTRO_ACF_AT_INIT);
     }
     ac_fault_enabled = true;
+#endif
 }
 
 void ac_fault_isr() {
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    return;
+#endif
     if (!ac_fault_enabled) {
         return;
     }
@@ -1128,7 +1145,11 @@ void ac_fault_isr() {
 }
 
 bool is_ac_fault_active() {
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    return false;
+#else
     return buddy::hw::acFault.read() == buddy::hw::Pin::State::low;
+#endif
 }
 
 } // namespace power_panic
