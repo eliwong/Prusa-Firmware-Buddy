@@ -419,17 +419,22 @@ extern "C" void main_cpp(void) {
     if (want_error_screen) {
         const uint16_t pending_code = message_is_valid() ? load_message_error_code() : 0;
         const auto msg_type = message_is_valid() ? message_get_type() : MsgType::EMPTY;
-        const bool only_xx615 = message_is_valid()
-            && !dump_is_valid()
+        // XX615: no AT21CSxx. Heatbreak codes: DIY often has no PA6 NTC (#13822 / MINTEMP).
+        const bool diy_expected_absent_sensor = message_is_valid()
             && (pending_code == static_cast<uint16_t>(ErrCode::BOOTLOADER_BT_EXTRUDER_NOT_DETECTED)
-                || pending_code == 23615); // MK3.5-prefixed presentation of XX615
-        if (only_xx615) {
-            log_warning(Buddy, "DIY boot: clearing XX615/BT_EXTRUDER only (code=%u)", pending_code);
+                || pending_code == 23615
+                || pending_code == static_cast<uint16_t>(ErrCode::CONNECT_HEATBREAK_THERMISTOR_FAIL)
+                || pending_code == static_cast<uint16_t>(ErrCode::ERR_TEMPERATURE_HEATBREAK_MINTEMP_ERR)
+                || pending_code == static_cast<uint16_t>(ErrCode::ERR_TEMPERATURE_HEATBREAK_MAXTEMP_ERR));
+        // Clear sensor-absent noise even if a companion crash dump exists (SoftReset path).
+        if (diy_expected_absent_sensor) {
+            log_warning(Buddy, "DIY boot: clearing expected-absent-sensor error (code=%u)", pending_code);
+            dump_set_displayed();
             message_set_displayed();
             force_save_message_without_dump(MsgType::EMPTY, 0, "", "");
             want_error_screen = false;
         } else {
-            log_warning(Buddy, "DIY boot: KEEPING error screen type=%u code=%u dump=%d (not SoftReset-loop clear)",
+            log_warning(Buddy, "DIY boot: KEEPING error screen type=%u code=%u dump=%d",
                 static_cast<unsigned>(msg_type), pending_code, dump_is_valid() ? 1 : 0);
         }
     }

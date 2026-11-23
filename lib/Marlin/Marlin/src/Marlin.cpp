@@ -453,7 +453,7 @@ void setup() {
 
   // G-code serial marker (any baud ≠ 57600): proves this SoftReset fix build is running.
   #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
-    SERIAL_ECHOLNPGM("DIY-MK4 marker: PP-OFF-v3 (keep RSOD; clear XX615 only)");
+    SERIAL_ECHOLNPGM("DIY-MK4 marker: PP-OFF-v4 (no heatbreak NTC; error-LED SPI quiet)");
   #endif
 
   #if defined(STRING_DISTRIBUTION_DATE) && defined(STRING_CONFIG_H_AUTHOR)
