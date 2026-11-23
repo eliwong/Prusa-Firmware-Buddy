@@ -151,19 +151,23 @@ void data_exchange_init() {
     ram_data_exchange.loveboard_status = {};
     ram_data_exchange.loveboard_eeprom = {};
 
-    #if HAS_XLCD()
+    #if CUSTOM_BOARD_NO_ONEWIRE_OTP() && (HAS_XLCD() || HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5())
+    // DIY: never probe AT21CSxx. read_xlcd() asserts LCD RST (PG4) low for the whole
+    // retry loop and bitbangs PC8 (shared with touch_sig) — with no EEPROM that burns
+    // time, leaves the panel white/held in reset longer, and can disturb touch → later
+    // faults look like a reboot/USB re-enum loop. Synthetic OTP is enough.
+    fixup_missing_onewire_otp();
+    #else
+        #if HAS_XLCD()
     // #error dead code found by automatic analyses (see BFW-5461)
     read_xlcd(ram_data_exchange.xlcd_eeprom, ram_data_exchange.xlcd_status);
-    #endif
+        #endif
 
-    // MK3.5 doesn't have a loveboard, but it needs the detection to complain if it's running on an MK4
-    #if HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5()
+        // MK3.5 doesn't have a loveboard, but it needs the detection to complain if it's running on an MK4
+        #if HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5()
     // #error dead code found by automatic analyses (see BFW-5461)
     read_loveboard(ram_data_exchange.loveboard_eeprom, ram_data_exchange.loveboard_status);
-    #endif
-
-    #if CUSTOM_BOARD_NO_ONEWIRE_OTP() && (HAS_XLCD() || HAS_LOVE_BOARD() || PRINTER_IS_PRUSA_MK3_5())
-    fixup_missing_onewire_otp();
+        #endif
     #endif
 }
 #else

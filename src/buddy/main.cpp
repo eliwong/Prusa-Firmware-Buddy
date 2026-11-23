@@ -327,6 +327,15 @@ extern "C" void main_cpp(void) {
     // Register RTT/USB/file sinks ASAP so early breadcrumbs are visible on SWD RTT
     // (USB CDC still needs usb_device task + host open at 57600 baud).
     buddy::logging_init();
+    // USB re-plug loop: check whether MCU actually reset (IWDG/PIN/SFT/BOR) vs USB-only re-enum.
+    log_info(Buddy, "DIY boot: reset CSR=0x%08lx IWDG=%d PIN=%d SFT=%d BOR=%d WWDG=%d LPWR=%d",
+        static_cast<unsigned long>(HAL_RCC_CSR),
+        (HAL_RCC_CSR & RCC_CSR_IWDGRSTF) ? 1 : 0,
+        (HAL_RCC_CSR & RCC_CSR_PINRSTF) ? 1 : 0,
+        (HAL_RCC_CSR & RCC_CSR_SFTRSTF) ? 1 : 0,
+        (HAL_RCC_CSR & RCC_CSR_BORRSTF) ? 1 : 0,
+        (HAL_RCC_CSR & RCC_CSR_WWDGRSTF) ? 1 : 0,
+        (HAL_RCC_CSR & RCC_CSR_LPWRRSTF) ? 1 : 0);
     log_info(Buddy, "DIY boot: gpio/dma ok, init xflash");
 #endif
 
