@@ -30,6 +30,7 @@
     #include <leds/led_manager.hpp>
 #endif
 #include <option/custom_board_no_onewire_otp.h>
+#include <option/diy_disable_shared_spi_status_leds.h>
 
 #include <gui/screen/initial/screen_crash_dump.hpp>
 #include <gui/screen/initial/screen_print_readiness.hpp>
@@ -112,18 +113,19 @@ void gui_error_run(void) {
 
 #if HAS_LEDS()
     leds::LEDManager::instance().init();
-    #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
-    // Status NeoPixels share the LCD SPI (CS multiplex). Error animation updates
-    // every few hundred ms while ScreenError redraws → white block flashes on DIY.
-    // One-shot LED update for backlight/status, then stop SPI to the strip.
+    // ScreenError calls StatusLedsHandler::set_error() → pulsing NeoPixel animation.
+    // On DIY, GuiLedsWriter may no-op (DIY_DISABLE_SHARED_SPI_STATUS_LEDS); still run
+    // one update so stock/muxed boards paint error LEDs once before the quiet loop.
     leds::LEDManager::instance().update();
-    #endif
 #endif
 
     while (true) {
         gui::TickLoop();
 
-#if HAS_LEDS() && !CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        // Do not continuously refresh NeoPixels here: shared LCD SPI + CS mux races
+        // produce large white flash rectangles (~animation period) on DIY panels.
+        // Normal gui_loop() still updates LEDs; GuiLedsWriter gates DIY SPI TX.
+#if HAS_LEDS() && !DIY_DISABLE_SHARED_SPI_STATUS_LEDS()
         leds::LEDManager::instance().update();
 #endif
 

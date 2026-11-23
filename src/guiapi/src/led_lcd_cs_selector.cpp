@@ -10,6 +10,7 @@
 #include "hwio_pindef.h"
 #include <buddy/ccm_thread.hpp>
 #include "option/has_side_leds.h"
+#include <option/diy_disable_shared_spi_status_leds.h>
 #include <common/spi_baud_rate_prescaler_guard.hpp>
 #include <option/has_burst_stepping.h>
 #include <bsod/bsod.h>
@@ -35,18 +36,28 @@ extern void ili9488_spi_wr_bytes(const uint8_t *pb, uint16_t size);
 extern void ili9488_cmd_nop(void);
 
 void GuiLedsWriter::write(uint8_t *pb, uint16_t size) {
+#if DIY_DISABLE_SHARED_SPI_STATUS_LEDS()
+    // DIY boards frequently omit the LCD/NeoPixel CS mux. WS2812 bitbang on this
+    // shared SPI then clocks the ILI9488 → large white flash rectangles on
+    // warning/error screens (pulsing status LED animation). Skip NeoPixel TX;
+    // use panel PWM / hardwired backlight instead.
+    (void)pb;
+    (void)size;
+    return;
+#else
     // LEDs use MHz10_5, reconfigure prescaler accordingly
     SPIBaudRatePrescalerGuard guard { spi_handle_lcd, SPI_BAUDRATEPRESCALER_8 };
 
     ili9488_cmd_nop();
 
-    // switch multiplex to send data to side led strip
+    // switch multiplex to send data to front status LED strip
     displayCs.set();
 
     ili9488_spi_wr_bytes(pb, size);
 
     // switch multiplex back
     displayCs.reset();
+#endif
 }
 
 #if BOARD_IS_XLBUDDY()

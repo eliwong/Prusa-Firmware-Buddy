@@ -451,9 +451,9 @@ void setup() {
   SERIAL_ECHOLNPGM(SHORT_BUILD_VERSION);
   SERIAL_EOL();
 
-  // G-code serial marker (any baud ≠ 57600): proves this SoftReset fix build is running.
+  // G-code serial marker (any baud ≠ 57600): proves this white-flash fix build is running.
   #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
-    SERIAL_ECHOLNPGM("DIY-MK4 marker: PP-OFF-v4 (no heatbreak NTC; error-LED SPI quiet)");
+    SERIAL_ECHOLNPGM("DIY-MK4 marker: PP-OFF-v5 (no shared-SPI NeoPixel TX; heatbreak bypass OFF)");
   #endif
 
   #if defined(STRING_DISTRIBUTION_DATE) && defined(STRING_CONFIG_H_AUTHOR)

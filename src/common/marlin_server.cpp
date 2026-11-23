@@ -115,7 +115,7 @@
 #include <option/has_loadcell.h>
 #include <option/has_nfc.h>
 #include <option/has_ht_hotend.h>
-#include <option/custom_board_no_onewire_otp.h>
+#include <option/diy_bypass_heatbreak_thermistor.h>
 #include <option/has_sheet_profiles.h>
 #include <option/has_i2c_expander.h>
 #include <option/has_chamber_api.h>
@@ -3235,7 +3235,7 @@ static void _server_print_loop(void) {
     }
 #endif
 
-#if HAS_TEMP_HEATBREAK && !CUSTOM_BOARD_NO_ONEWIRE_OTP()
+#if HAS_TEMP_HEATBREAK && !DIY_BYPASS_HEATBREAK_THERMISTOR()
     for (auto tool : PhysicalToolIndex::all()) {
     #if HAS_TOOLCHANGER()
         if (!tool.is_enabled()) {

@@ -112,22 +112,22 @@ set(CUSTOM_BOARD_NO_ONEWIRE_OTP
     )
 define_boolean_option(CUSTOM_BOARD_NO_ONEWIRE_OTP ${CUSTOM_BOARD_NO_ONEWIRE_OTP})
 
-# DIY ILI9488 panels often differ from Prusa xLCD.
-# - Wrong INVON → light bg/dark text; clones usually need INVOFF. Default ON with CUSTOM_BOARD.
-# - BGR MADCTL: OFF by default. Inverted orange often looks blue; after INVOFF, Prusa RGB (0xE0)
-#   is usually correct. Enable only if brand orange still reads as blue with INVOFF.
-# - MADCTL readback on clones often fails (SPI MISO), causing lcd::communication_check to
-#   reinit the panel every ~2s → whole-screen white flash. Skip that check by default.
+# DIY ILI9488 panels often differ from Prusa xLCD. - Wrong INVON → light bg/dark text; clones
+# usually need INVOFF. Default ON with CUSTOM_BOARD. - BGR MADCTL: OFF by default. Inverted orange
+# often looks blue; after INVOFF, Prusa RGB (0xE0) is usually correct. Enable only if brand orange
+# still reads as blue with INVOFF. - MADCTL readback on clones often fails (SPI MISO), causing
+# lcd::communication_check to reinit the panel every ~2s → whole-screen white flash. Skip that check
+# by default.
 set(DIY_ILI9488_INVERSION_OFF
     ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
-    CACHE BOOL
-          "DIY ILI9488: use Display Inversion OFF (CMD 0x20) instead of ON (0x21)."
+    CACHE BOOL "DIY ILI9488: use Display Inversion OFF (CMD 0x20) instead of ON (0x21)."
     )
 define_boolean_option(DIY_ILI9488_INVERSION_OFF ${DIY_ILI9488_INVERSION_OFF})
 set(DIY_ILI9488_BGR
     OFF
-    CACHE BOOL
-          "DIY ILI9488: set MADCTL BGR bit (0xE0|0x08). Only if orange still looks blue after INVOFF."
+    CACHE
+      BOOL
+      "DIY ILI9488: set MADCTL BGR bit (0xE0|0x08). Only if orange still looks blue after INVOFF."
     )
 define_boolean_option(DIY_ILI9488_BGR ${DIY_ILI9488_BGR})
 set(DIY_ILI9488_SKIP_MADCTL_CHECK
@@ -141,10 +141,34 @@ define_boolean_option(DIY_ILI9488_SKIP_MADCTL_CHECK ${DIY_ILI9488_SKIP_MADCTL_CH
 # Hardware always-on (PMOS gate to GND) works with either setting.
 set(DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT
     OFF
-    CACHE BOOL
-          "DIY ILI9488: skip WRCTRLD/CABC PWM backlight setup (only if discrete always-on needs it)."
+    CACHE
+      BOOL
+      "DIY ILI9488: skip WRCTRLD/CABC PWM backlight setup (only if discrete always-on needs it)."
     )
-define_boolean_option(DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT ${DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT})
+define_boolean_option(
+  DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT ${DIY_ILI9488_DISABLE_PANEL_PWM_BACKLIGHT}
+  )
+
+# DIY / clone xBuddy often lacks the LCD↔NeoPixel CS mux (displayCs / A77). Driving WS2812 bitbang
+# on the shared SPI while the ILI9488 stays selected produces large white flash rectangles
+# (~animation period) on warning/error screens. Default ON with CUSTOM_BOARD. Keep panel CABC/PWM or
+# hardwired backlight; status NeoPixels will stay dark.
+set(DIY_DISABLE_SHARED_SPI_STATUS_LEDS
+    ${CUSTOM_BOARD_NO_ONEWIRE_OTP}
+    CACHE
+      BOOL
+      "DIY: do not drive status NeoPixels on the LCD SPI bus (fixes white-flash on error/warning screens)."
+    )
+define_boolean_option(DIY_DISABLE_SHARED_SPI_STATUS_LEDS ${DIY_DISABLE_SHARED_SPI_STATUS_LEDS})
+
+# Optional soft-bypass for missing heatbreak NTC (PA6). Default OFF — do not hide #13822.
+set(DIY_BYPASS_HEATBREAK_THERMISTOR
+    OFF
+    CACHE
+      BOOL
+      "DIY: skip heatbreak thermistor fail (#13822) and heatbreak MINTEMP checks (missing PA6 NTC)."
+    )
+define_boolean_option(DIY_BYPASS_HEATBREAK_THERMISTOR ${DIY_BYPASS_HEATBREAK_THERMISTOR})
 
 if(${BOARD} STREQUAL "XL_DEV_KIT_XLB")
   set(WUI

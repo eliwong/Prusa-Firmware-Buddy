@@ -14,7 +14,7 @@
 #endif
 
 #include <option/has_power_panic.h>
-#include <option/custom_board_no_onewire_otp.h>
+#include <option/diy_bypass_heatbreak_thermistor.h>
 #include <bsod/bsod.h>
 #if HAS_POWER_PANIC()
     #include <power_panic.hpp>
@@ -192,8 +192,7 @@ void LocalHotend::isr_on_readings_ready() {
         heatbreak_raw_temp_ = acc;
         acc = 0;
 
-    #if !CUSTOM_BOARD_NO_ONEWIRE_OTP()
-        // DIY often has no heatbreak NTC on PA6; open circuit → HEATBREAK MINTEMP RSOD SoftReset.
+    #if !DIY_BYPASS_HEATBREAK_THERMISTOR()
         heatbreak_raw_temp_range_.check_temperror(heatbreak_raw_temp_, H_HEATBREAK_FIRST + tool_.to_raw(), heater_on);
     #endif
     }
