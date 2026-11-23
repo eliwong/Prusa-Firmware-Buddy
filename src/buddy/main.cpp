@@ -412,18 +412,26 @@ extern "C" void main_cpp(void) {
     bool want_error_screen = (dump_is_valid() && !dump_is_displayed()) || (message_is_valid() && message_get_type() != MsgType::EMPTY && !message_is_displayed());
 
 #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
-    // Closed-source bootloader writes BT_EXTRUDER_NOT_DETECTED (XX615 → #13615/#23615)
-    // to xflash when LoveBoard AT21CSxx is absent. Also any other stale dump/message
-    // opens ScreenError → infinite critical_alert. DIY: invalidate and continue —
-    // AT21CSxx chip is intentionally omitted; firmware synthesizes LoveBoard OTP.
+    // Closed-source bootloader may write BT_EXTRUDER_NOT_DETECTED (XX615 / 13615)
+    // when LoveBoard AT21CSxx is absent. Clear ONLY that code — wiping every pending
+    // dump/RSOD hid real fatals (mintemp etc.): fatal → SoftReset → clear → fatal →
+    // SoftReset loop with Marlin banner forever.
     if (want_error_screen) {
         const uint16_t pending_code = message_is_valid() ? load_message_error_code() : 0;
-        log_warning(Buddy, "DIY boot: clearing pending error screen (code=%u, BT_EXTRUDER/XX615 expected when no AT21CSxx)", pending_code);
-        dump_set_displayed();
-        message_set_displayed();
-        // Erase message payload so a later UI path cannot re-show XX615 text.
-        force_save_message_without_dump(MsgType::EMPTY, 0, "", "");
-        want_error_screen = false;
+        const auto msg_type = message_is_valid() ? message_get_type() : MsgType::EMPTY;
+        const bool only_xx615 = message_is_valid()
+            && !dump_is_valid()
+            && (pending_code == static_cast<uint16_t>(ErrCode::BOOTLOADER_BT_EXTRUDER_NOT_DETECTED)
+                || pending_code == 23615); // MK3.5-prefixed presentation of XX615
+        if (only_xx615) {
+            log_warning(Buddy, "DIY boot: clearing XX615/BT_EXTRUDER only (code=%u)", pending_code);
+            message_set_displayed();
+            force_save_message_without_dump(MsgType::EMPTY, 0, "", "");
+            want_error_screen = false;
+        } else {
+            log_warning(Buddy, "DIY boot: KEEPING error screen type=%u code=%u dump=%d (not SoftReset-loop clear)",
+                static_cast<unsigned>(msg_type), pending_code, dump_is_valid() ? 1 : 0);
+        }
     }
 #endif
 

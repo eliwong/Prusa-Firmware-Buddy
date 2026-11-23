@@ -31,7 +31,14 @@
 
 #include <utils/string_builder.hpp>
 #include <option/has_indx.h>
+#include <option/custom_board_no_onewire_otp.h>
 #include <tool_index.hpp>
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    #include <Marlin/src/inc/MarlinConfig.h>
+    #include <Marlin/src/core/serial.h>
+    #include <logging/log.hpp>
+LOG_COMPONENT_REF(Buddy);
+#endif
 
 // this is private struct definition from FreeRTOS
 /*
@@ -136,6 +143,20 @@ static void save_current_tool() {
 [[noreturn]] void raise_redscreen(ErrCode error_code, const char *error, const char *module) {
 #if HAS_INDX()
     save_current_tool();
+#endif
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    // G-code serial + 57600 log before SoftReset (CrashCatcher → sys_reset → SFTRST).
+    log_critical(Buddy, "DIY FATAL RSOD code=%u module=%s err=%s",
+        static_cast<unsigned>(std::to_underlying(error_code)),
+        module ? module : "", error ? error : "");
+    SERIAL_ECHOLNPGM("DIY-MK4 FATAL RSOD — see next boot error screen (v3 keeps it)");
+    SERIAL_ECHOLNPAIR("DIY-MK4 FATAL code=", static_cast<unsigned>(std::to_underlying(error_code)));
+    if (module) {
+        SERIAL_ECHOLNPAIR("DIY-MK4 FATAL module=", module);
+    }
+    if (error) {
+        SERIAL_ECHOLNPAIR("DIY-MK4 FATAL msg=", error);
+    }
 #endif
     crash_dump::save_message(crash_dump::MsgType::RSOD, std::to_underlying(error_code), error, module);
     crash_dump::trigger_crash_dump();
