@@ -907,6 +907,14 @@ void panic_loop() {
         while (shutdown_loop()) {
         }
 
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+        // DIY: never soft-reset from AC-fault idle path (was ~9s SoftReset loop).
+        log_error(PowerPanic, "DIY: WaitingToDie reached — hanging (no sys_reset)");
+        for (;;) {
+            wdt_iwdg_refresh();
+            delay_us_precise(1000);
+        }
+#else
         // power panic is handled, stop execution of main thread, and wait here until CPU dies
         // Wait time is longer then WDG period, so we'll refresh watchdog few times to avoid dying of dog bites
         // Remember osDelay does not work here as ac_fault_task repeatedly calls xTaskAbortDelay
@@ -916,6 +924,7 @@ void panic_loop() {
         }
 
         sys_reset();
+#endif
 
     case PPState::Inactive:
     case PPState::Prepared:

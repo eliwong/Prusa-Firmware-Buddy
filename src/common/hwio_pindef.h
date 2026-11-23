@@ -52,6 +52,16 @@
 #include <option/has_i2c_expander.h>
 #include <option/has_indx.h>
 #include <option/has_indx_head.h>
+#include <option/custom_board_no_onewire_otp.h>
+
+// DIY: no AC-sense on PG0 — keep InterruptPin API but Pull::up (not float) + ISR no-op / no SoftReset.
+#if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    #define PIN_TABLE_ACFAULT(MACRO_FUNCTION) \
+        MACRO_FUNCTION(buddy::hw::InterruptPin, acFault, buddy::hw::IoPort::G COMMA buddy::hw::IoPin::p0, IMode::IT_falling COMMA Pull::up COMMA ISR_PRIORITY_POWER_PANIC COMMA 0, power_panic::ac_fault_isr)
+#else
+    #define PIN_TABLE_ACFAULT(MACRO_FUNCTION) \
+        MACRO_FUNCTION(buddy::hw::InterruptPin, acFault, buddy::hw::IoPort::G COMMA buddy::hw::IoPin::p0, IMode::IT_falling COMMA Pull::none COMMA ISR_PRIORITY_POWER_PANIC COMMA 0, power_panic::ac_fault_isr)
+#endif
 
 #include <option/has_advanced_power.h>
 #if HAS_ADVANCED_POWER()
@@ -323,7 +333,7 @@ void hw_init_spi_side_leds();
             MACRO_FUNCTION(buddy::hw::InputPin, fsUSBOvercurrent, buddy::hw::IoPort::F COMMA buddy::hw::IoPin::p14, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputPin, fsUSBCInt, buddy::hw::IoPort::A COMMA buddy::hw::IoPin::p9, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::OutputPin, acellCs, buddy::hw::IoPort::A COMMA buddy::hw::IoPin::p10, Pin::State::high COMMA OMode::pushPull COMMA OSpeed::high, buddy::hw::noHandler) \
-            MACRO_FUNCTION(buddy::hw::InterruptPin, acFault, buddy::hw::IoPort::G COMMA buddy::hw::IoPin::p0, IMode::IT_falling COMMA Pull::none COMMA ISR_PRIORITY_POWER_PANIC COMMA 0, power_panic::ac_fault_isr) \
+            PIN_TABLE_ACFAULT(MACRO_FUNCTION) \
             MACRO_FUNCTION(buddy::hw::OutputPin, extFlashCs, buddy::hw::IoPort::F COMMA buddy::hw::IoPin::p2, Pin::State::high COMMA OMode::pushPull COMMA OSpeed::high, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::OutputPin, internal_storage_flash_cs, buddy::hw::IoPort::E COMMA buddy::hw::IoPin::p15, Pin::State::high COMMA OMode::pushPull COMMA OSpeed::high, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputPin, fanTach, buddy::hw::IoPort::E COMMA buddy::hw::IoPin::p10, IMode::input COMMA Pull::up, buddy::hw::noHandler) \
@@ -363,7 +373,7 @@ void hw_init_spi_side_leds();
             MACRO_FUNCTION(buddy::hw::InputPin, hsUSBOvercurrent, buddy::hw::IoPort::D COMMA buddy::hw::IoPin::p9, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputPin, fsUSBOvercurrent, buddy::hw::IoPort::F COMMA buddy::hw::IoPin::p14, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputPin, fsUSBCInt, buddy::hw::IoPort::A COMMA buddy::hw::IoPin::p9, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
-            MACRO_FUNCTION(buddy::hw::InterruptPin, acFault, buddy::hw::IoPort::G COMMA buddy::hw::IoPin::p0, IMode::IT_falling COMMA Pull::none COMMA ISR_PRIORITY_POWER_PANIC COMMA 0, power_panic::ac_fault_isr) \
+            PIN_TABLE_ACFAULT(MACRO_FUNCTION) \
             MACRO_FUNCTION(buddy::hw::OutputPin, extFlashCs, buddy::hw::IoPort::F COMMA buddy::hw::IoPin::p2, Pin::State::high COMMA OMode::pushPull COMMA OSpeed::high, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputOutputPin, touch_sig, buddy::hw::IoPort::C COMMA buddy::hw::IoPin::p8, IMode::input COMMA Pull::none, buddy::hw::noHandler)
     #elif (BOARD_IS_XBUDDY())
@@ -399,7 +409,7 @@ void hw_init_spi_side_leds();
             MACRO_FUNCTION(buddy::hw::InputPin, fsUSBOvercurrent, buddy::hw::IoPort::F COMMA buddy::hw::IoPin::p14, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputPin, fsUSBCInt, buddy::hw::IoPort::A COMMA buddy::hw::IoPin::p9, IMode::input COMMA Pull::none, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::OutputPin, acellCs, buddy::hw::IoPort::A COMMA buddy::hw::IoPin::p10, Pin::State::high COMMA OMode::pushPull COMMA OSpeed::high, buddy::hw::noHandler) \
-            MACRO_FUNCTION(buddy::hw::InterruptPin, acFault, buddy::hw::IoPort::G COMMA buddy::hw::IoPin::p0, IMode::IT_falling COMMA Pull::none COMMA ISR_PRIORITY_POWER_PANIC COMMA 0, power_panic::ac_fault_isr) \
+            PIN_TABLE_ACFAULT(MACRO_FUNCTION) \
             MACRO_FUNCTION(buddy::hw::OutputPin, extFlashCs, buddy::hw::IoPort::F COMMA buddy::hw::IoPin::p2, Pin::State::high COMMA OMode::pushPull COMMA OSpeed::high, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputPin, fanTach, buddy::hw::IoPort::E COMMA buddy::hw::IoPin::p10, IMode::input COMMA Pull::up, buddy::hw::noHandler) \
             MACRO_FUNCTION(buddy::hw::InputOutputPin, touch_sig, buddy::hw::IoPort::C COMMA buddy::hw::IoPin::p8, IMode::input COMMA Pull::none, buddy::hw::noHandler) \

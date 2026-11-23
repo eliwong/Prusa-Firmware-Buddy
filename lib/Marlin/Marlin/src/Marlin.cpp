@@ -32,6 +32,7 @@
 
 #include <option/has_phase_stepping.h>
 #include <option/has_ht_hotend.h>
+#include <option/custom_board_no_onewire_otp.h>
 #if HAS_HT_HOTEND()
   #include <hotend_detect.hpp>
 #endif
@@ -449,6 +450,11 @@ void setup() {
   SERIAL_CHAR(' ');
   SERIAL_ECHOLNPGM(SHORT_BUILD_VERSION);
   SERIAL_EOL();
+
+  // G-code serial marker (any baud ≠ 57600): proves this SoftReset fix build is running.
+  #if CUSTOM_BOARD_NO_ONEWIRE_OTP()
+    SERIAL_ECHOLNPGM("DIY-MK4 marker: PP-OFF-v2 (PG0 PullUp, no AC-fault SoftReset)");
+  #endif
 
   #if defined(STRING_DISTRIBUTION_DATE) && defined(STRING_CONFIG_H_AUTHOR)
     SERIAL_ECHO_MSG(
